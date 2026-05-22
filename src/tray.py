@@ -152,7 +152,11 @@ class SettingsWindow:
                 if self._preview_cap and self._preview_cap.isOpened():
                     ret, frame = self._preview_cap.read()
                     if ret:
-                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        if len(frame.shape) == 2 or frame.shape[2] == 1:
+                            gray  = frame if len(frame.shape) == 2 else frame[:, :, 0]
+                            frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+                        else:
+                            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                         frame = cv2.resize(frame, (320, 240))
                         img   = ImageTk.PhotoImage(Image.fromarray(frame))
                         try:

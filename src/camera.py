@@ -102,7 +102,11 @@ class MotionDetector:
             ok, frame = self._cap.read()
             if not ok:
                 return False
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # IR cameras (Hello) leveren soms 1-kanaals frame — geen conversie nodig
+            if len(frame.shape) == 2 or frame.shape[2] == 1:
+                gray = frame if len(frame.shape) == 2 else frame[:, :, 0]
+            else:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (11, 11), 0)
             if self._prev_frame is None:
                 self._prev_frame = gray
