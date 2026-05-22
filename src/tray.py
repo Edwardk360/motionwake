@@ -7,10 +7,28 @@ from tkinter import ttk, messagebox
 import os
 import sys
 
+import win32serviceutil
+import win32service
 from src import config, logger_setup
 from src.screen import ScreenKeepAlive, check_motion_flag, clear_motion_flag
 from src.camera import list_cameras
 from src.updater import check_update_async
+
+SERVICE_NAME = "MotionWakeSvc"
+
+
+def _restart_service():
+    """Herstart de service zodat nieuwe instellingen direct actief worden."""
+    try:
+        status = win32serviceutil.QueryServiceStatus(SERVICE_NAME)[1]
+        if status == win32service.SERVICE_RUNNING:
+            win32serviceutil.RestartService(SERVICE_NAME)
+            log.info("Service herstart na opslaan instellingen")
+        else:
+            win32serviceutil.StartService(SERVICE_NAME)
+            log.info("Service gestart na opslaan instellingen")
+    except Exception as e:
+        log.warning(f"Service herstarten mislukt (mogelijk geen admin rechten): {e}")
 
 log = logger_setup.setup()
 
@@ -84,9 +102,9 @@ class SettingsWindow:
             cfg_dict["sensitivity"] = str(sens_var.get())
             cfg_dict["screen_on_duration"] = str(dur_var.get())
             config.save(cfg_dict)
-            log.info(f"Settings saved: camera={idx}, sensitivity={sens_var.get()}, duration={dur_var.get()}")
-            messagebox.showinfo("Opgeslagen", "Instellingen opgeslagen.\nHerstart de service om wijzigingen toe te passen.")
+            log.info(f"Instellingen opgeslagen: camera={idx}, gevoeligheid={sens_var.get()}, duur={dur_var.get()}")
             root.destroy()
+            _restart_service()
 
         ttk.Button(frame, text="Opslaan", command=save_and_close).grid(
             row=3, column=0, columnspan=2, pady=20

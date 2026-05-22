@@ -1,27 +1,44 @@
 import cv2
-import wmi
+import subprocess
 import threading
 import time
 from src import logger_setup
 
 log = logger_setup.setup()
 
-def list_cameras():
-    """Return list of (index, name) for all cameras including IR/Windows Hello cameras."""
-    cameras = []
+
+def _get_wmi_camera_names():
+    """Haal logische cameranamen op via PowerShell in DirectShow volgorde."""
     try:
-        c = wmi.WMI()
-        wmi_cameras = {i: dev.Name for i, dev in enumerate(c.Win32_PnPEntity(PNPClass="Camera"))}
+        cmd = (
+            "Get-PnpDevice -Class Camera -Status OK | "
+            "Sort-Object FriendlyName | "
+            "Select-Object -ExpandProperty FriendlyName"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", cmd],
+            capture_output=True, text=True, timeout=5
+        )
+        names = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return names
     except Exception:
-        wmi_cameras = {}
+        return []
+
+
+def list_cameras():
+    """Geeft lijst van (index, naam) voor alle cameras inclusief IR/Windows Hello."""
+    wmi_names = _get_wmi_camera_names()
+    cameras = []
+    wmi_idx = 0
 
     for i in range(10):
         cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
         if cap.isOpened():
-            name = wmi_cameras.get(i, f"Camera {i}")
+            name = wmi_names[wmi_idx] if wmi_idx < len(wmi_names) else f"Camera {i}"
             cameras.append((i, name))
-            log.info(f"Found camera [{i}]: {name}")
+            log.info(f"Camera gevonden [{i}]: {name}")
             cap.release()
+            wmi_idx += 1
 
     return cameras
 
@@ -38,24 +55,23 @@ class MotionDetector:
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
-        log.info(f"Motion detector started on camera index {self.camera_index}")
+        log.info(f"Bewegingsdetectie gestart op camera index {self.camera_index}")
 
     def stop(self):
         self._running = False
         if self._thread:
             self._thread.join(timeout=5)
-        log.info("Motion detector stopped")
+        log.info("Bewegingsdetectie gestopt")
 
     def _run(self):
-        # Use CAP_DSHOW backend — required for Windows Hello IR cameras
         cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
         if not cap.isOpened():
-            log.error(f"Cannot open camera index {self.camera_index}")
+            log.error(f"Kan camera index {self.camera_index} niet openen")
             return
 
         ret, prev_frame = cap.read()
         if not ret:
-            log.error("Cannot read initial frame from camera")
+            log.error("Kan geen frame lezen van camera")
             cap.release()
             return
 
@@ -65,7 +81,7 @@ class MotionDetector:
         while self._running:
             ret, frame = cap.read()
             if not ret:
-                log.warning("Frame read failed, retrying...")
+                log.warning("Frame lezen mislukt, opnieuw proberen...")
                 time.sleep(1)
                 continue
 
@@ -77,7 +93,7 @@ class MotionDetector:
             motion_pixels = cv2.countNonZero(thresh)
 
             if motion_pixels > 500:
-                log.info(f"Motion detected ({motion_pixels} px changed)")
+                log.info(f"Beweging gedetecteerd ({motion_pixels} px gewijzigd)")
                 if self.on_motion:
                     self.on_motion()
 
