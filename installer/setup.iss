@@ -39,14 +39,23 @@ Filename: "{app}\motionwake.exe"; Parameters: "--tray";    Flags: nowait postins
 [UninstallRun]
 Filename: "{app}\motionwake.exe"; Parameters: "--uninstall"; Flags: runhidden
 
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\logs"
+Type: files;          Name: "{commonappdata}\MotionWake\config.ini"
+Type: dirifempty;     Name: "{commonappdata}\MotionWake"
+
 [InstallDelete]
 Type: filesandordirs; Name: "{app}"
+Type: files;          Name: "{commonappdata}\MotionWake\config.ini"
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then begin
-    // Verwijder oude installatie bestanden voor nieuwe installatie
+    // Stop service voor installatie
+    Exec('net.exe', 'stop MotionWakeSvc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // Verwijder oude installatiebestanden en instellingen
     DelTree(ExpandConstant('{app}'), True, True, True);
+    DeleteFile(ExpandConstant('{commonappdata}\MotionWake\config.ini'));
   end;
 end;

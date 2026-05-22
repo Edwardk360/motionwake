@@ -1,44 +1,54 @@
 import cv2
-import subprocess
+import winreg
 import threading
 import time
 from src import logger_setup
 
 log = logger_setup.setup()
 
+CLSID_VIDEO_INPUT = "{860BB310-5D01-11D0-BD3B-00A0C911CE86}"
 
-def _get_wmi_camera_names():
-    """Haal logische cameranamen op via PowerShell in DirectShow volgorde."""
+
+def _get_registry_camera_names():
+    """Cameranamen uit Windows register — zelfde volgorde als DirectShow/OpenCV."""
+    names = []
+    key_path = f"SOFTWARE\\Classes\\CLSID\\{CLSID_VIDEO_INPUT}\\Instance"
     try:
-        cmd = (
-            "Get-PnpDevice -Class Camera -Status OK | "
-            "Sort-Object FriendlyName | "
-            "Select-Object -ExpandProperty FriendlyName"
-        )
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", cmd],
-            capture_output=True, text=True, timeout=5
-        )
-        names = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        return names
-    except Exception:
-        return []
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
+        i = 0
+        while True:
+            try:
+                subkey_name = winreg.EnumKey(key, i)
+                subkey = winreg.OpenKey(key, subkey_name)
+                try:
+                    friendly_name, _ = winreg.QueryValueEx(subkey, "FriendlyName")
+                    names.append(friendly_name)
+                except FileNotFoundError:
+                    names.append(f"Camera {i}")
+                winreg.CloseKey(subkey)
+                i += 1
+            except OSError:
+                break
+        winreg.CloseKey(key)
+    except Exception as e:
+        log.warning(f"Register cameranamen ophalen mislukt: {e}")
+    return names
 
 
 def list_cameras():
     """Geeft lijst van (index, naam) voor alle cameras inclusief IR/Windows Hello."""
-    wmi_names = _get_wmi_camera_names()
+    registry_names = _get_registry_camera_names()
     cameras = []
-    wmi_idx = 0
+    reg_idx = 0
 
     for i in range(10):
         cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
         if cap.isOpened():
-            name = wmi_names[wmi_idx] if wmi_idx < len(wmi_names) else f"Camera {i}"
+            name = registry_names[reg_idx] if reg_idx < len(registry_names) else f"Camera {i}"
             cameras.append((i, name))
             log.info(f"Camera gevonden [{i}]: {name}")
             cap.release()
-            wmi_idx += 1
+            reg_idx += 1
 
     return cameras
 
