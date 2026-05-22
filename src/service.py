@@ -6,7 +6,6 @@ import win32serviceutil
 import win32service
 import win32event
 import win32ts
-import win32security
 import win32process
 import win32profile
 import win32con
@@ -106,13 +105,6 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
                 return None
 
             token = win32ts.WTSQueryUserToken(session_id)
-            dup_token = win32security.DuplicateTokenEx(
-                token,
-                win32security.SecurityImpersonation,
-                None,
-                win32security.TokenPrimary,
-                None,
-            )
 
             startup = win32process.STARTUPINFO()
             startup.dwFlags     = win32con.STARTF_USESHOWWINDOW
@@ -120,7 +112,7 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
             startup.lpDesktop   = "winsta0\\default"
 
             try:
-                env = win32profile.CreateEnvironmentBlock(dup_token, False)
+                env = win32profile.CreateEnvironmentBlock(token, False)
                 create_flags = win32process.NORMAL_PRIORITY_CLASS | win32process.CREATE_UNICODE_ENVIRONMENT
             except Exception as env_err:
                 log.warning(f"CreateEnvironmentBlock mislukt, gebruik SYSTEM env: {env_err}")
@@ -128,7 +120,7 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
                 create_flags = win32process.NORMAL_PRIORITY_CLASS
 
             proc_info = win32process.CreateProcessAsUser(
-                dup_token,
+                token,
                 tray_exe,
                 f'"{tray_exe}" --tray',
                 None, None, False,
