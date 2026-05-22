@@ -41,12 +41,17 @@ Filename: "{app}\motionwake.exe"; Parameters: "--uninstall"; Flags: runhidden
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\logs"
+Type: filesandordirs; Name: "{commonappdata}\MotionWake\logs"
 Type: files;          Name: "{commonappdata}\MotionWake\config.ini"
 Type: dirifempty;     Name: "{commonappdata}\MotionWake"
+Type: filesandordirs; Name: "{userappdata}\MotionWake\logs"
+Type: dirifempty;     Name: "{userappdata}\MotionWake"
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}"
+Type: filesandordirs; Name: "{commonappdata}\MotionWake\logs"
 Type: files;          Name: "{commonappdata}\MotionWake\config.ini"
+Type: filesandordirs; Name: "{userappdata}\MotionWake\logs"
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
