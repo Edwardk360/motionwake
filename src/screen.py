@@ -10,14 +10,13 @@ log = logger_setup.setup()
 REGISTRY_KEY   = r"SOFTWARE\MotionWake"
 REGISTRY_VALUE = "MotionDetected"
 
-# SetThreadExecutionState flags — houdt scherm aan nadat het gewekt is
 ES_CONTINUOUS       = 0x80000000
 ES_DISPLAY_REQUIRED = 0x00000002
 ES_SYSTEM_REQUIRED  = 0x00000001
 
-# SendInput structuren — exact hetzelfde als echte muis input
-INPUT_MOUSE        = 0
-MOUSEEVENTF_MOVE   = 0x0001
+INPUT_MOUSE      = 0
+MOUSEEVENTF_MOVE = 0x0001
+
 
 class _MOUSEINPUT(ctypes.Structure):
     _fields_ = [
@@ -29,6 +28,7 @@ class _MOUSEINPUT(ctypes.Structure):
         ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
     ]
 
+
 class _INPUT(ctypes.Structure):
     _fields_ = [
         ("type", ctypes.c_ulong),
@@ -37,40 +37,17 @@ class _INPUT(ctypes.Structure):
 
 
 def _simulate_mouse_move():
-    """
-    Simuleert een muisbeweging via SendInput — wekt het scherm op exact
-    zoals het aanraken van een echte muis. Werkt vanuit de gebruikerssessie.
-    """
+    """Simuleert muisbeweging via SendInput — wekt scherm vanuit gebruikerssessie."""
     inp = _INPUT()
-    inp.type    = INPUT_MOUSE
+    inp.type       = INPUT_MOUSE
     inp.mi.dwFlags = MOUSEEVENTF_MOVE
-
     inp.mi.dx = 1
     ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
     inp.mi.dx = -1
     ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
 
-def wake_screen():
-    """
-    Wekt het scherm op door muisbeweging te simuleren (SendInput).
-    Daarna SetThreadExecutionState zodat het scherm aan blijft.
-    """
-    _simulate_mouse_move()
-    ctypes.windll.kernel32.SetThreadExecutionState(
-        ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED
-    )
-    log.info("Scherm gewekt via SendInput (muisbeweging gesimuleerd)")
-
-
-def allow_sleep():
-    """Geeft Windows toestemming om het scherm weer uit te zetten."""
-    ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
-    log.info("Scherm wake lock vrijgegeven")
-
-
 def set_motion_flag():
-    """Service schrijft deze vlag — tray app leest hem."""
     try:
         key = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY)
         winreg.SetValueEx(key, REGISTRY_VALUE, 0, winreg.REG_DWORD, 1)
@@ -99,20 +76,40 @@ def check_motion_flag() -> bool:
 
 
 class ScreenKeepAlive:
-    """Houdt scherm aan voor `duration` seconden na beweging."""
+    """
+    Houdt het scherm aan via een dedicated thread.
+    SetThreadExecutionState is per-thread — alle aanroepen moeten vanuit
+    dezelfde thread komen, anders werkt het vrijgeven niet.
+    """
     def __init__(self, duration=60):
-        self.duration = duration
-        self._timer   = None
+        self.duration    = duration
+        self._keep_until = 0.0
+        self._running    = True
+        self._thread     = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
     def trigger(self):
-        wake_screen()
-        if self._timer:
-            self._timer.cancel()
-        self._timer = threading.Timer(self.duration, allow_sleep)
-        self._timer.start()
-        log.info(f"Scherm blijft {self.duration} seconden aan")
+        _simulate_mouse_move()
+        self._keep_until = time.time() + self.duration
+        log.info(f"Scherm gewekt — blijft {self.duration} seconden aan")
+
+    def _loop(self):
+        awake = False
+        while self._running:
+            if time.time() < self._keep_until:
+                if not awake:
+                    ctypes.windll.kernel32.SetThreadExecutionState(
+                        ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED
+                    )
+                    awake = True
+            else:
+                if awake:
+                    ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+                    log.info("Scherm wake lock vrijgegeven")
+                    awake = False
+            time.sleep(1)
 
     def stop(self):
-        if self._timer:
-            self._timer.cancel()
-        allow_sleep()
+        self._running    = False
+        self._keep_until = 0.0
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
