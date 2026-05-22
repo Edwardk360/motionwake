@@ -54,7 +54,14 @@ var
   ResultCode: Integer;
 begin
   if CurStep = ssInstall then begin
+    // Sluit tray app geforceerd af
+    Exec('taskkill.exe', '/F /IM motionwake.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // Stop en wacht even zodat het proces volledig gestopt is
+    Sleep(1500);
+    // Stop de service
     Exec('net.exe', 'stop MotionWakeSvc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1000);
+    // Verwijder oude bestanden en instellingen
     DelTree(ExpandConstant('{app}'), True, True, True);
     DeleteFile(ExpandConstant('{commonappdata}\MotionWake\config.ini'));
   end;
