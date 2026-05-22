@@ -111,9 +111,12 @@ class SettingsWindow:
         cam_box.grid(row=0, column=1, pady=6, padx=8, columnspan=2)
         Tooltip(cam_box, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.")
 
-        # Camera preview
-        preview_label = tk.Label(frame, bg="#000000", width=40, height=8)
-        preview_label.grid(row=1, column=0, columnspan=3, pady=8)
+        # Camera preview — vaste pixelgrootte via frame zodat auto-sizing direct klopt
+        preview_frame = tk.Frame(frame, width=320, height=240, bg="#000000")
+        preview_frame.grid(row=1, column=0, columnspan=3, pady=8)
+        preview_frame.grid_propagate(False)
+        preview_label = tk.Label(preview_frame, bg="#000000")
+        preview_label.place(relwidth=1, relheight=1)
         Tooltip(preview_label, "Live beeld van de geselecteerde camera.\nVerander de camera selectie hierboven om een andere camera te bekijken.")
 
         # Gevoeligheid
