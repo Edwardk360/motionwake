@@ -336,7 +336,9 @@ class TrayApp:
                     "Over MotionWake",
                     f"MotionWake v{self.version}\nGemaakt door Edwardk360\n\n"
                     "Bewegingsdetectie via webcam / Windows Hello sensor.\n"
-                    "Wekt scherm via muisbeweging simulatie."
+                    "Wekt scherm via muisbeweging simulatie.\n\n"
+                    "Ideaal voor kiosk-schermen zoals een Home Assistant\n"
+                    "touchscreen als permanent hoofdscherm."
                 )
             finally:
                 try:
