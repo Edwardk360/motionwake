@@ -8,6 +8,7 @@ import os
 import sys
 import cv2
 
+import ctypes
 import logging
 import win32serviceutil
 import win32service
@@ -39,6 +40,19 @@ THEMES = {
 
 def get_theme():
     return THEMES.get(config.load().get("theme", "dark"), THEMES["dark"])
+
+
+def apply_dark_titlebar(root, dark: bool):
+    """Titelbalk dark/light via Windows DWM API (werkt op Windows 10 build 17763+)."""
+    try:
+        root.update_idletasks()
+        hwnd  = ctypes.windll.user32.GetParent(root.winfo_id())
+        value = ctypes.c_int(1 if dark else 0)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd, 20, ctypes.byref(value), ctypes.sizeof(value)
+        )
+    except Exception:
+        pass
 
 VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "version.txt")
 
@@ -112,6 +126,16 @@ class SettingsWindow:
         root.resizable(False, False)
         root.configure(bg=BG)
 
+        # Titelbalk dark/light via Windows API
+        is_dark = (BG == THEMES["dark"]["bg"])
+        apply_dark_titlebar(root, is_dark)
+
+        # Combobox dropdown lijst kleuren
+        root.option_add("*TCombobox*Listbox.background", IBG)
+        root.option_add("*TCombobox*Listbox.foreground", FG)
+        root.option_add("*TCombobox*Listbox.selectBackground", ACCENT)
+        root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+
         style = ttk.Style(root)
         style.theme_use("clam")
         style.configure(".",          background=BG, foreground=FG, font=("Segoe UI", 10))
@@ -163,11 +187,11 @@ class SettingsWindow:
         # Scherm aan duur
         dur_lbl = ttk.Label(frame, text="Scherm aan (seconden):")
         dur_lbl.grid(row=3, column=0, sticky="w", pady=6)
-        Tooltip(dur_lbl, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.", bg=TT_BG, fg=TT_FG)
+        Tooltip(dur_lbl, "Gegarandeerde tijd dat het scherm aan blijft na gedetecteerde beweging.\n\nNa deze tijd mag Windows het scherm uitzetten op basis van de eigen energie-instellingen. MotionWake zet het scherm zelf nooit uit.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten", bg=TT_BG, fg=TT_FG)
         dur_var   = tk.IntVar(value=int(cfg.get("screen_on_duration", 60)))
         dur_entry = ttk.Entry(frame, textvariable=dur_var, width=8)
         dur_entry.grid(row=3, column=1, sticky="w", pady=6, padx=8)
-        Tooltip(dur_entry, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.", bg=TT_BG, fg=TT_FG)
+        Tooltip(dur_entry, "Gegarandeerde tijd dat het scherm aan blijft na gedetecteerde beweging.\n\nNa deze tijd mag Windows het scherm uitzetten op basis van de eigen energie-instellingen. MotionWake zet het scherm zelf nooit uit.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten", bg=TT_BG, fg=TT_FG)
 
         # Preview thread
         self._preview_running = True
@@ -366,7 +390,8 @@ class TrayApp:
 
     def run(self):
         log.info(f"MotionWake tray v{self.version} gestart")
-        log.info(f"Logbestand: {log.handlers[0].baseFilename if log.handlers else 'onbekend'}")
+        h = log.handlers[0] if log.handlers else None
+        log.info(f"Logbestand: {getattr(h, 'baseFilename', 'stderr')}")
         check_update_async(self.version, lambda v: log.info(f"Nieuwe versie beschikbaar: {v}"))
 
         # Logniveau uit config toepassen
