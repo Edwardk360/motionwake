@@ -8,6 +8,7 @@ import win32event
 import win32ts
 import win32security
 import win32process
+import win32profile
 import win32con
 import servicemanager
 
@@ -118,15 +119,23 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
             startup.wShowWindow = win32con.SW_HIDE
             startup.lpDesktop   = "winsta0\\default"
 
+            try:
+                env = win32profile.CreateEnvironmentBlock(dup_token, False)
+                create_flags = win32process.NORMAL_PRIORITY_CLASS | win32process.CREATE_UNICODE_ENVIRONMENT
+            except Exception as env_err:
+                log.warning(f"CreateEnvironmentBlock mislukt, gebruik SYSTEM env: {env_err}")
+                env = None
+                create_flags = win32process.NORMAL_PRIORITY_CLASS
+
             proc_info = win32process.CreateProcessAsUser(
                 dup_token,
                 tray_exe,
                 f'"{tray_exe}" --tray',
                 None, None, False,
-                win32process.NORMAL_PRIORITY_CLASS,
-                None, None, startup,
+                create_flags,
+                env, None, startup,
             )
-            log.info(f"Tray app gestart in sessie {session_id}")
+            log.info(f"Tray app gestart in sessie {session_id}, PID={proc_info[2]}")
             return proc_info[0]  # process handle
         except Exception as e:
             log.error(f"Tray app starten mislukt in sessie {session_id}: {e}")

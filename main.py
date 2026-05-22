@@ -9,7 +9,7 @@ _TRAY_MUTEX = None
 
 def _acquire_tray_mutex():
     global _TRAY_MUTEX
-    _TRAY_MUTEX = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\MotionWakeTrayMutex")
+    _TRAY_MUTEX = ctypes.windll.kernel32.CreateMutexW(None, True, "Local\\MotionWakeTrayMutex")
     return ctypes.windll.kernel32.GetLastError() != 183  # 183 = ERROR_ALREADY_EXISTS
 
 
