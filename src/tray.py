@@ -80,7 +80,6 @@ class SettingsWindow:
         cfg  = config.load()
         root = tk.Tk()
         root.title("MotionWake Instellingen")
-        root.geometry("500x420")
         root.resizable(False, False)
         root.configure(bg=BG)
 
@@ -193,6 +192,15 @@ class SettingsWindow:
         ttk.Button(frame, text="Opslaan", command=save_and_close).grid(
             row=4, column=0, columnspan=3, pady=20
         )
+
+        # Venster automatisch op juiste grootte en gecentreerd
+        root.update_idletasks()
+        w = root.winfo_reqwidth()
+        h = root.winfo_reqheight()
+        x = (root.winfo_screenwidth()  - w) // 2
+        y = (root.winfo_screenheight() - h) // 2
+        root.geometry(f"{w}x{h}+{x}+{y}")
+
         root.mainloop()
 
 
