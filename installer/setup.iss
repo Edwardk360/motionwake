@@ -24,6 +24,9 @@ Name: "config"; Description: "Standaard configuratiebestand";  Types: full
 Source: "..\dist\motionwake\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Components: main
 Source: "..\assets\icon.ico";   DestDir: "{app}"; Flags: ignoreversion; Components: main
 
+[Dirs]
+Name: "{app}\logs"; Permissions: everyone-modify
+
 [Icons]
 Name: "{group}\MotionWake";           Filename: "{app}\motionwake.exe"; IconFilename: "{app}\icon.ico"
 Name: "{group}\Verwijder MotionWake"; Filename: "{uninstallexe}"
