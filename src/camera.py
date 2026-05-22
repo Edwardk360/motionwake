@@ -104,6 +104,7 @@ class MotionDetector:
                 return False
             ok, frame = self._cap.read()
             if not ok:
+                log.debug("Frame lezen mislukt")
                 return False
             # IR cameras (Hello) leveren soms 1-kanaals frame — geen conversie nodig
             if len(frame.shape) == 2 or frame.shape[2] == 1:
@@ -117,7 +118,9 @@ class MotionDetector:
             delta = cv2.absdiff(self._prev_frame, gray)
             self._prev_frame = gray
             _, thresh = cv2.threshold(delta, self.sensitivity, 255, cv2.THRESH_BINARY)
-            return int(cv2.countNonZero(thresh)) > 300
+            score = int(cv2.countNonZero(thresh))
+            log.debug(f"Bewegingsscore: {score} (drempel: 300, gevoeligheid: {self.sensitivity})")
+            return score > 300
 
     def start(self):
         self._running = True
@@ -142,6 +145,8 @@ class MotionDetector:
 
         log.info(f"Camera {self.camera_index} geopend — monitoring actief")
 
+        heartbeat_ts = time.time()
+
         while self._running:
             try:
                 if not self._cap or not self._cap.isOpened():
@@ -150,6 +155,12 @@ class MotionDetector:
                     time.sleep(2)
                     self._open()
                     continue
+
+                # Heartbeat elke 30s op DEBUG niveau
+                now = time.time()
+                if now - heartbeat_ts >= 30:
+                    log.debug(f"Camera {self.camera_name} actief — monitoring loopt")
+                    heartbeat_ts = now
 
                 if self._detect():
                     now = time.time()
