@@ -50,11 +50,11 @@ Type: files;          Name: "{commonappdata}\MotionWake\config.ini"
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
 begin
   if CurStep = ssInstall then begin
-    // Stop service voor installatie
     Exec('net.exe', 'stop MotionWakeSvc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    // Verwijder oude installatiebestanden en instellingen
     DelTree(ExpandConstant('{app}'), True, True, True);
     DeleteFile(ExpandConstant('{commonappdata}\MotionWake\config.ini'));
   end;
