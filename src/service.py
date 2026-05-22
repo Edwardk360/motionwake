@@ -186,11 +186,33 @@ def install_service():
         win32service.ChangeServiceConfig2(
             hs, win32service.SERVICE_CONFIG_DESCRIPTION, SERVICE_DESCRIPTION
         )
+        # Herstelacties: automatisch herstarten bij crash
+        win32service.ChangeServiceConfig2(
+            hs,
+            win32service.SERVICE_CONFIG_FAILURE_ACTIONS,
+            {
+                'ResetPeriod': 86400,
+                'RebootMsg':   '',
+                'Command':     '',
+                'Actions': [
+                    (win32service.SC_ACTION_RESTART, 5000),
+                    (win32service.SC_ACTION_RESTART, 10000),
+                    (win32service.SC_ACTION_RESTART, 30000),
+                ],
+            },
+        )
         win32service.CloseServiceHandle(hs)
     finally:
         win32service.CloseServiceHandle(hscm)
 
     log.info(f"Service geïnstalleerd: {binary_path}")
+
+    # Direct starten — niet wachten op herstart
+    try:
+        win32serviceutil.StartService(SERVICE_NAME)
+        log.info("Service direct gestart na installatie")
+    except Exception as e:
+        log.warning(f"Service direct starten mislukt (start bij volgende herstart): {e}")
 
 
 def uninstall_service():
