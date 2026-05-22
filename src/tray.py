@@ -341,6 +341,7 @@ class TrayApp:
 
     def run(self):
         log.info(f"MotionWake tray v{self.version} gestart")
+        log.info(f"Logbestand: {log.handlers[0].baseFilename if log.handlers else 'onbekend'}")
         check_update_async(self.version, lambda v: log.info(f"Nieuwe versie beschikbaar: {v}"))
 
         # Logniveau uit config toepassen

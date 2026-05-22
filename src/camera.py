@@ -63,16 +63,19 @@ class MotionDetector:
     Lage resolutie (320x240) en 15fps voor minimaal resourcegebruik als service.
     Retry bij camera verlies (bijv. na slaapstand).
     """
+    MOTION_COOLDOWN = 5  # seconden tussen twee opeenvolgende motion events
+
     def __init__(self, camera_index=0, sensitivity=20, on_motion=None, camera_name=None):
-        self.camera_index = camera_index
-        self.camera_name  = camera_name or get_camera_name(camera_index)
-        self.sensitivity  = sensitivity
-        self.on_motion    = on_motion
-        self._cap         = None
-        self._prev_frame  = None
-        self._lock        = threading.Lock()
-        self._running     = False
-        self._thread      = None
+        self.camera_index    = camera_index
+        self.camera_name     = camera_name or get_camera_name(camera_index)
+        self.sensitivity     = sensitivity
+        self.on_motion       = on_motion
+        self._cap            = None
+        self._prev_frame     = None
+        self._lock           = threading.Lock()
+        self._running        = False
+        self._thread         = None
+        self._last_motion_ts = 0
 
     def _open(self) -> bool:
         with self._lock:
@@ -149,9 +152,12 @@ class MotionDetector:
                     continue
 
                 if self._detect():
-                    log.info(f"Beweging gedetecteerd door: {self.camera_name}")
-                    if self.on_motion:
-                        self.on_motion()
+                    now = time.time()
+                    if now - self._last_motion_ts >= self.MOTION_COOLDOWN:
+                        self._last_motion_ts = now
+                        log.info(f"Beweging gedetecteerd door: {self.camera_name}")
+                        if self.on_motion:
+                            self.on_motion()
 
             except Exception as e:
                 log.error(f"Detectie fout: {e}")
