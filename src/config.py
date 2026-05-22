@@ -10,6 +10,7 @@ DEFAULTS = {
     "check_interval": "1",
     "github_update_check": "true",
     "log_level": "INFO",
+    "theme": "dark",
 }
 
 def load():

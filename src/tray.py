@@ -18,9 +18,26 @@ from src.updater import check_update_async
 log = logger_setup.setup()
 
 SERVICE_NAME = "MotionWakeSvc"
-BG = "#1e1e1e"
-FG = "#ffffff"
-ACCENT = "#0ab4ff"
+
+THEMES = {
+    "dark": {
+        "bg":           "#1e1e1e",
+        "fg":           "#ffffff",
+        "accent":       "#0ab4ff",
+        "input_bg":     "#333333",
+        "button_active":"#444444",
+    },
+    "light": {
+        "bg":           "#f5f5f5",
+        "fg":           "#1a1a1a",
+        "accent":       "#0078d4",
+        "input_bg":     "#ffffff",
+        "button_active":"#e0e0e0",
+    },
+}
+
+def get_theme():
+    return THEMES.get(config.load().get("theme", "dark"), THEMES["dark"])
 
 VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "version.txt")
 
@@ -77,7 +94,13 @@ class SettingsWindow:
         self._preview_running = False
 
     def show(self):
-        cfg  = config.load()
+        cfg   = config.load()
+        t     = get_theme()
+        BG    = t["bg"]
+        FG    = t["fg"]
+        IBG   = t["input_bg"]
+        BACT  = t["button_active"]
+
         root = tk.Tk()
         root.title("MotionWake Instellingen")
         root.resizable(False, False)
@@ -88,12 +111,12 @@ class SettingsWindow:
         style.configure(".",          background=BG, foreground=FG, font=("Segoe UI", 10))
         style.configure("TFrame",     background=BG)
         style.configure("TLabel",     background=BG, foreground=FG, font=("Segoe UI", 10))
-        style.configure("TButton",    background="#333333", foreground=FG)
-        style.configure("TCombobox",  fieldbackground="#333333", foreground=FG, background="#333333")
-        style.configure("TEntry",     fieldbackground="#333333", foreground=FG)
-        style.configure("TScale",     background=BG, troughcolor="#333333")
-        style.map("TCombobox",        fieldbackground=[("readonly", "#333333")])
-        style.map("TButton",          background=[("active", "#444444")])
+        style.configure("TButton",    background=IBG, foreground=FG)
+        style.configure("TCombobox",  fieldbackground=IBG, foreground=FG, background=IBG)
+        style.configure("TEntry",     fieldbackground=IBG, foreground=FG)
+        style.configure("TScale",     background=BG, troughcolor=IBG)
+        style.map("TCombobox",        fieldbackground=[("readonly", IBG)])
+        style.map("TButton",          background=[("active", BACT)])
 
         frame = ttk.Frame(root, padding=20)
         frame.pack(fill="both", expand=True)
@@ -307,6 +330,15 @@ class TrayApp:
     def _log_level_checked(self, level_name):
         return lambda item: config.load().get("log_level", "INFO").upper() == level_name
 
+    def _set_theme(self, theme_name):
+        cfg_dict = dict(config.load())
+        cfg_dict["theme"] = theme_name
+        config.save(cfg_dict)
+        log.info(f"Thema gewijzigd naar {theme_name} — actief bij volgende venster")
+
+    def _theme_checked(self, theme_name):
+        return lambda item: config.load().get("theme", "dark") == theme_name
+
     def run(self):
         log.info(f"MotionWake tray v{self.version} gestart")
         check_update_async(self.version, lambda v: log.info(f"Nieuwe versie beschikbaar: {v}"))
@@ -328,11 +360,17 @@ class TrayApp:
             pystray.MenuItem("ERROR",   lambda icon, item: self._set_log_level("ERROR"),   checked=self._log_level_checked("ERROR"),   radio=True),
         )
 
+        theme_menu = pystray.Menu(
+            pystray.MenuItem("Dark mode",  lambda icon, item: self._set_theme("dark"),  checked=self._theme_checked("dark"),  radio=True),
+            pystray.MenuItem("Light mode", lambda icon, item: self._set_theme("light"), checked=self._theme_checked("light"), radio=True),
+        )
+
         menu = pystray.Menu(
             pystray.MenuItem(f"MotionWake v{self.version}", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Instellingen", self._on_settings),
             pystray.MenuItem("Log niveau",   log_menu),
+            pystray.MenuItem("Thema",        theme_menu),
             pystray.MenuItem("Over",         self._on_about),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Afsluiten",    self._on_quit),
