@@ -35,6 +35,12 @@ def _get_registry_camera_names():
     return names
 
 
+def get_camera_name(camera_index: int) -> str:
+    """Snelle naam-lookup via register (opent geen camera)."""
+    names = _get_registry_camera_names()
+    return names[camera_index] if camera_index < len(names) else f"Camera {camera_index}"
+
+
 def list_cameras():
     """Geeft lijst van (index, naam) voor alle cameras inclusief IR/Windows Hello."""
     registry_names = _get_registry_camera_names()
@@ -57,8 +63,9 @@ class MotionDetector:
     Lage resolutie (320x240) en 15fps voor minimaal resourcegebruik als service.
     Retry bij camera verlies (bijv. na slaapstand).
     """
-    def __init__(self, camera_index=0, sensitivity=20, on_motion=None):
+    def __init__(self, camera_index=0, sensitivity=20, on_motion=None, camera_name=None):
         self.camera_index = camera_index
+        self.camera_name  = camera_name or get_camera_name(camera_index)
         self.sensitivity  = sensitivity
         self.on_motion    = on_motion
         self._cap         = None
@@ -138,7 +145,7 @@ class MotionDetector:
                     continue
 
                 if self._detect():
-                    log.info("Beweging gedetecteerd")
+                    log.info(f"Beweging gedetecteerd door: {self.camera_name}")
                     if self.on_motion:
                         self.on_motion()
 

@@ -27,13 +27,14 @@ def _get_log_dir():
 LOG_DIR = _get_log_dir()
 
 def setup(name="motionwake"):
-    log_file = os.path.join(LOG_DIR, f"{datetime.now().strftime('%Y-%m-%d')}.log")
+    log_file = os.path.join(LOG_DIR, "motionwake.log")
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
     if not logger.handlers:
-        fh = logging.FileHandler(log_file, encoding="utf-8")
+        # mode='w' schoont het logbestand bij elke herstart
+        fh = logging.FileHandler(log_file, mode="w", encoding="utf-8")
         fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
         logger.addHandler(fh)
 
