@@ -1,7 +1,16 @@
 import sys
+import ctypes
 import traceback
 import tkinter as tk
 from tkinter import messagebox
+
+# Voorkom dubbele tray-instantie (service + commonstartup starten beide)
+_TRAY_MUTEX = None
+
+def _acquire_tray_mutex():
+    global _TRAY_MUTEX
+    _TRAY_MUTEX = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\MotionWakeTrayMutex")
+    return ctypes.windll.kernel32.GetLastError() != 183  # 183 = ERROR_ALREADY_EXISTS
 
 
 def show_crash(exc):
@@ -24,6 +33,8 @@ def main():
     arg = sys.argv[1] if len(sys.argv) > 1 else "--tray"
 
     if arg == "--tray":
+        if not _acquire_tray_mutex():
+            sys.exit(0)  # Al actief, stil afsluiten
         from src.tray import TrayApp
         TrayApp().run()
 

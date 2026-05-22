@@ -44,24 +44,40 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
         self._run()
 
     def _run(self):
-        launched_sessions = set()
+        # sessie_id → process handle
+        session_processes = {}
 
         while win32event.WaitForSingleObject(self.stop_event, 5000) == win32event.WAIT_TIMEOUT:
             try:
                 session_id = win32ts.WTSGetActiveConsoleSessionId()
-                if session_id != 0xFFFFFFFF and session_id not in launched_sessions:
-                    self._launch_tray(session_id)
-                    launched_sessions.add(session_id)
+                if session_id == 0xFFFFFFFF:
+                    continue
+
+                proc = session_processes.get(session_id)
+                if proc is None:
+                    # Nieuwe sessie — tray starten
+                    proc = self._launch_tray(session_id)
+                    if proc:
+                        session_processes[session_id] = proc
+                else:
+                    # Bestaande sessie — controleer of tray nog actief is
+                    exit_code = win32process.GetExitCodeProcess(proc)
+                    if exit_code != 259:  # 259 = STILL_ACTIVE
+                        log.warning(f"Tray app gestopt in sessie {session_id} (exit {exit_code}) — herstarten")
+                        del session_processes[session_id]
+                        proc = self._launch_tray(session_id)
+                        if proc:
+                            session_processes[session_id] = proc
             except Exception as e:
                 log.warning(f"Sessie check mislukt: {e}")
 
     def _launch_tray(self, session_id):
-        """Start de tray app in de actieve gebruikerssessie."""
+        """Start de tray app in de actieve gebruikerssessie, geeft process handle terug."""
         try:
             tray_exe = os.path.join(os.path.dirname(sys.executable), "motionwake.exe")
             if not os.path.exists(tray_exe):
                 log.error(f"Tray exe niet gevonden: {tray_exe}")
-                return
+                return None
 
             token = win32ts.WTSQueryUserToken(session_id)
             dup_token = win32security.DuplicateTokenEx(
@@ -73,10 +89,10 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
             )
 
             startup = win32process.STARTUPINFO()
-            startup.dwFlags    = win32con.STARTF_USESHOWWINDOW
+            startup.dwFlags     = win32con.STARTF_USESHOWWINDOW
             startup.wShowWindow = win32con.SW_HIDE
 
-            win32process.CreateProcessAsUser(
+            proc_info = win32process.CreateProcessAsUser(
                 dup_token,
                 tray_exe,
                 f'"{tray_exe}" --tray',
@@ -85,8 +101,10 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
                 None, None, startup,
             )
             log.info(f"Tray app gestart in sessie {session_id}")
+            return proc_info[0]  # process handle
         except Exception as e:
             log.error(f"Tray app starten mislukt in sessie {session_id}: {e}")
+            return None
 
 
 def _service_exists():
