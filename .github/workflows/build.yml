@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2025
 
     steps:
       - name: Checkout
@@ -32,11 +32,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Generate icon
+        run: python create_icon.py
+        shell: pwsh
+
       - name: Build EXE with PyInstaller
         run: |
           pyinstaller --onedir --windowed --name motionwake `
             --add-data "version.txt;." `
             --add-data "assets/icon.ico;assets" `
+            --icon "assets/icon.ico" `
             --hidden-import win32timezone `
             --hidden-import pystray._win32 `
             main.py
