@@ -57,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MotionWake-Setup-v${{ steps.version.outputs.VERSION }}
-          path: Output\MotionWake_Setup_v${{ steps.version.outputs.VERSION }}.exe
+          path: installer\Output\MotionWake_Setup_v${{ steps.version.outputs.VERSION }}.exe
 
       - name: Upload EXE (standalone)
         uses: actions/upload-artifact@v4
