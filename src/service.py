@@ -61,7 +61,34 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
         self.detector.stop()
 
 
+def _service_exists():
+    try:
+        hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CONNECT)
+        hs = win32service.OpenService(hscm, SERVICE_NAME, win32service.SERVICE_QUERY_STATUS)
+        win32service.CloseServiceHandle(hs)
+        win32service.CloseServiceHandle(hscm)
+        return True
+    except win32service.error:
+        return False
+
+
+def _stop_service_if_running():
+    try:
+        status = win32serviceutil.QueryServiceStatus(SERVICE_NAME)
+        if status[1] == win32service.SERVICE_RUNNING:
+            win32serviceutil.StopService(SERVICE_NAME)
+            import time
+            time.sleep(2)
+    except Exception:
+        pass
+
+
 def install_service():
+    if _service_exists():
+        log.info("Service bestaat al — eerst verwijderen voor herinstallatie")
+        _stop_service_if_running()
+        win32serviceutil.RemoveService(SERVICE_NAME)
+
     win32serviceutil.InstallService(
         None,
         SERVICE_NAME,
@@ -69,13 +96,18 @@ def install_service():
         startType=win32service.SERVICE_AUTO_START,
         description=SERVICE_DESCRIPTION,
     )
-    print(f"Service '{SERVICE_NAME}' installed.")
+    print(f"Service '{SERVICE_NAME}' geïnstalleerd.")
     log.info("Service installed")
 
 
 def uninstall_service():
+    if not _service_exists():
+        print(f"Service '{SERVICE_NAME}' bestaat niet.")
+        log.warning("Uninstall called but service does not exist")
+        return
+    _stop_service_if_running()
     win32serviceutil.RemoveService(SERVICE_NAME)
-    print(f"Service '{SERVICE_NAME}' removed.")
+    print(f"Service '{SERVICE_NAME}' verwijderd.")
     log.info("Service uninstalled")
 
 
