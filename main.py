@@ -5,14 +5,19 @@ from tkinter import messagebox
 
 
 def show_crash(exc):
+    err = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     root = tk.Tk()
     root.withdraw()
-    err = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    messagebox.showerror(
-        "MotionWake - Fout",
-        f"Er is een onverwachte fout opgetreden:\n\n{err}\n\nKopieer de tekst en neem contact op met de ontwikkelaar.",
-    )
-    root.destroy()
+    try:
+        messagebox.showerror(
+            "MotionWake - Fout",
+            f"Er is een onverwachte fout opgetreden:\n\n{err}\n\nKopieer de tekst en neem contact op met de ontwikkelaar.",
+        )
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
 
 
 def main():
