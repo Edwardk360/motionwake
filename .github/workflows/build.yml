@@ -18,7 +18,9 @@ jobs:
 
       - name: Read version
         id: version
-        run: echo "VERSION=$(Get-Content version.txt -Raw).Trim()" >> $env:GITHUB_OUTPUT
+        run: |
+          $version = (Get-Content version.txt -Raw).Trim()
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
       - name: Set up Python 3.11 (x64)
