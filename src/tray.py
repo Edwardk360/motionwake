@@ -388,6 +388,19 @@ class TrayApp:
     def _theme_checked(self, theme_name):
         return lambda item: config.load().get("theme", "dark") == theme_name
 
+    def _run_headless(self):
+        """Draait zonder tray icon — voor Kiosk sessies zonder explorer shell."""
+        log.info("Headless mode actief — bewegingsdetectie loopt op de achtergrond")
+        try:
+            while True:
+                time.sleep(30)
+        except Exception:
+            pass
+        finally:
+            if self.detector:
+                self.detector.stop()
+            self.keep_alive.stop()
+
     def run(self):
         log.info(f"MotionWake tray v{self.version} gestart")
         h = log.handlers[0] if log.handlers else None
@@ -428,7 +441,11 @@ class TrayApp:
             pystray.MenuItem("Afsluiten",    self._on_quit),
         )
 
-        self.icon = pystray.Icon(
-            "MotionWake", create_icon_image(False), "MotionWake", menu
-        )
-        self.icon.run()
+        try:
+            self.icon = pystray.Icon(
+                "MotionWake", create_icon_image(False), "MotionWake", menu
+            )
+            self.icon.run()
+        except Exception as e:
+            log.warning(f"Tray icon niet beschikbaar (Kiosk/geen shell?) — headless draaien: {e}")
+            self._run_headless()

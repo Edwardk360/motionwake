@@ -43,31 +43,56 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
         log.info("Service gestart — tray app wordt beheerd per gebruikerssessie")
         self._run()
 
+    def _get_active_sessions(self):
+        """Geeft alle actieve interactieve sessies — werkt ook voor Kiosk."""
+        active = []
+        # Methode 1: console sessie
+        try:
+            cid = win32ts.WTSGetActiveConsoleSessionId()
+            if cid != 0xFFFFFFFF:
+                active.append(cid)
+        except Exception:
+            pass
+        # Methode 2: alle WTS sessies (vangnet voor Kiosk)
+        try:
+            for s in win32ts.WTSEnumerateSessions():
+                sid   = s["SessionId"]
+                state = s["State"]
+                if state == win32ts.WTSActive and sid not in active and sid != 0:
+                    log.info(f"Kiosk/extra sessie gevonden via WTSEnumerateSessions: {sid}")
+                    active.append(sid)
+        except Exception as e:
+            log.warning(f"WTSEnumerateSessions mislukt: {e}")
+        return active
+
     def _run(self):
-        # sessie_id → process handle
         session_processes = {}
 
         while win32event.WaitForSingleObject(self.stop_event, 5000) == win32event.WAIT_TIMEOUT:
             try:
-                session_id = win32ts.WTSGetActiveConsoleSessionId()
-                if session_id == 0xFFFFFFFF:
-                    continue
+                sessions = self._get_active_sessions()
 
-                proc = session_processes.get(session_id)
-                if proc is None:
-                    # Nieuwe sessie — tray starten
-                    proc = self._launch_tray(session_id)
-                    if proc:
-                        session_processes[session_id] = proc
-                else:
-                    # Bestaande sessie — controleer of tray nog actief is
-                    exit_code = win32process.GetExitCodeProcess(proc)
-                    if exit_code != 259:  # 259 = STILL_ACTIVE
-                        log.warning(f"Tray app gestopt in sessie {session_id} (exit {exit_code}) — herstarten")
-                        del session_processes[session_id]
+                for session_id in sessions:
+                    proc = session_processes.get(session_id)
+                    if proc is None:
                         proc = self._launch_tray(session_id)
                         if proc:
                             session_processes[session_id] = proc
+                    else:
+                        exit_code = win32process.GetExitCodeProcess(proc)
+                        if exit_code != 259:  # 259 = STILL_ACTIVE
+                            log.warning(f"Tray gestopt in sessie {session_id} (exit {exit_code}) — herstarten")
+                            del session_processes[session_id]
+                            proc = self._launch_tray(session_id)
+                            if proc:
+                                session_processes[session_id] = proc
+
+                # Sessies opruimen die niet meer actief zijn
+                for sid in list(session_processes.keys()):
+                    if sid not in sessions:
+                        del session_processes[sid]
+                        log.info(f"Sessie {sid} niet meer actief — opgeruimd")
+
             except Exception as e:
                 log.warning(f"Sessie check mislukt: {e}")
 
@@ -91,6 +116,7 @@ class MotionWakeService(win32serviceutil.ServiceFramework):
             startup = win32process.STARTUPINFO()
             startup.dwFlags     = win32con.STARTF_USESHOWWINDOW
             startup.wShowWindow = win32con.SW_HIDE
+            startup.lpDesktop   = "winsta0\\default"
 
             proc_info = win32process.CreateProcessAsUser(
                 dup_token,
