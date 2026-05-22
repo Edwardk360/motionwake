@@ -62,9 +62,11 @@ def create_icon_image(active=False):
 
 class Tooltip:
     """Toont een uitleg bij hoveren over een widget."""
-    def __init__(self, widget, text):
+    def __init__(self, widget, text, bg="#2a2a2a", fg="#ffffff"):
         self.widget = widget
         self.text   = text
+        self.bg     = bg
+        self.fg     = fg
         self.tip    = None
         widget.bind("<Enter>", self._show)
         widget.bind("<Leave>", self._hide)
@@ -77,7 +79,7 @@ class Tooltip:
         self.tip.wm_geometry(f"+{x}+{y}")
         tk.Label(
             self.tip, text=self.text, justify="left",
-            background="#2a2a2a", foreground="#ffffff",
+            background=self.bg, foreground=self.fg,
             relief="flat", font=("Segoe UI", 9),
             padx=8, pady=5, wraplength=280
         ).pack()
@@ -96,11 +98,14 @@ class SettingsWindow:
 
     def show(self):
         cfg   = config.load()
-        t     = get_theme()
-        BG    = t["bg"]
-        FG    = t["fg"]
-        IBG   = t["input_bg"]
-        BACT  = t["button_active"]
+        t      = get_theme()
+        BG     = t["bg"]
+        FG     = t["fg"]
+        IBG    = t["input_bg"]
+        BACT   = t["button_active"]
+        ACCENT = t["accent"]
+        TT_BG  = "#2a2a2a" if BG == THEMES["dark"]["bg"] else "#e8e8e8"
+        TT_FG  = "#ffffff"  if BG == THEMES["dark"]["bg"] else "#1a1a1a"
 
         root = tk.Tk()
         root.title("MotionWake Instellingen")
@@ -125,7 +130,7 @@ class SettingsWindow:
         # Camera selectie
         cam_lbl = ttk.Label(frame, text="Camera:")
         cam_lbl.grid(row=0, column=0, sticky="w", pady=6)
-        Tooltip(cam_lbl, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.")
+        Tooltip(cam_lbl, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.", bg=TT_BG, fg=TT_FG)
         cam_names = [name for _, name in self.cameras]
         cam_var   = tk.StringVar()
         cam_box   = ttk.Combobox(frame, textvariable=cam_var, values=cam_names, state="readonly", width=32)
@@ -133,7 +138,7 @@ class SettingsWindow:
         default_pos = next((i for i, (idx, _) in enumerate(self.cameras) if idx == current_cam_idx), 0)
         cam_box.current(default_pos)
         cam_box.grid(row=0, column=1, pady=6, padx=8, columnspan=2)
-        Tooltip(cam_box, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.")
+        Tooltip(cam_box, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.", bg=TT_BG, fg=TT_FG)
 
         # Camera preview — vaste pixelgrootte via frame zodat auto-sizing direct klopt
         preview_frame = tk.Frame(frame, width=320, height=240, bg="#000000")
@@ -141,16 +146,16 @@ class SettingsWindow:
         preview_frame.grid_propagate(False)
         preview_label = tk.Label(preview_frame, bg="#000000")
         preview_label.place(relwidth=1, relheight=1)
-        Tooltip(preview_label, "Live beeld van de geselecteerde camera.\nVerander de camera selectie hierboven om een andere camera te bekijken.")
+        Tooltip(preview_label, "Live beeld van de geselecteerde camera.\nVerander de camera selectie hierboven om een andere camera te bekijken.", bg=TT_BG, fg=TT_FG)
 
         # Gevoeligheid
         sens_lbl_title = ttk.Label(frame, text="Gevoeligheid (1-80):")
         sens_lbl_title.grid(row=2, column=0, sticky="w", pady=6)
-        Tooltip(sens_lbl_title, "Hoe gevoelig de bewegingsdetectie is.\n\nLaag (1-20): detecteert kleine bewegingen zoals een hand.\nMiddel (20-40): detecteert normale loopbewegingen.\nHoog (40-80): alleen grote snelle bewegingen.\n\nBij veel valse meldingen: waarde verhogen.\nBij geen detectie: waarde verlagen.")
+        Tooltip(sens_lbl_title, "Hoe gevoelig de bewegingsdetectie is.\n\nLaag (1-20): detecteert kleine bewegingen zoals een hand.\nMiddel (20-40): detecteert normale loopbewegingen.\nHoog (40-80): alleen grote snelle bewegingen.\n\nBij veel valse meldingen: waarde verhogen.\nBij geen detectie: waarde verlagen.", bg=TT_BG, fg=TT_FG)
         sens_var   = tk.IntVar(value=int(cfg.get("sensitivity", 20)))
         sens_scale = ttk.Scale(frame, from_=1, to=80, variable=sens_var, orient="horizontal", length=200)
         sens_scale.grid(row=2, column=1, pady=6, padx=8)
-        Tooltip(sens_scale, "Hoe gevoelig de bewegingsdetectie is.\n\nLaag (1-20): detecteert kleine bewegingen zoals een hand.\nMiddel (20-40): detecteert normale loopbewegingen.\nHoog (40-80): alleen grote snelle bewegingen.")
+        Tooltip(sens_scale, "Hoe gevoelig de bewegingsdetectie is.\n\nLaag (1-20): detecteert kleine bewegingen zoals een hand.\nMiddel (20-40): detecteert normale loopbewegingen.\nHoog (40-80): alleen grote snelle bewegingen.", bg=TT_BG, fg=TT_FG)
         sens_lbl   = ttk.Label(frame, text=str(sens_var.get()))
         sens_lbl.grid(row=2, column=2, padx=4)
         sens_var.trace_add("write", lambda *_: sens_lbl.config(text=str(sens_var.get())))
@@ -158,11 +163,11 @@ class SettingsWindow:
         # Scherm aan duur
         dur_lbl = ttk.Label(frame, text="Scherm aan (seconden):")
         dur_lbl.grid(row=3, column=0, sticky="w", pady=6)
-        Tooltip(dur_lbl, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.")
+        Tooltip(dur_lbl, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.", bg=TT_BG, fg=TT_FG)
         dur_var   = tk.IntVar(value=int(cfg.get("screen_on_duration", 60)))
         dur_entry = ttk.Entry(frame, textvariable=dur_var, width=8)
         dur_entry.grid(row=3, column=1, sticky="w", pady=6, padx=8)
-        Tooltip(dur_entry, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.")
+        Tooltip(dur_entry, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.", bg=TT_BG, fg=TT_FG)
 
         # Preview thread
         self._preview_running = True
@@ -220,7 +225,9 @@ class SettingsWindow:
             root.destroy()
 
         root.protocol("WM_DELETE_WINDOW", on_close)
-        ttk.Button(frame, text="Opslaan", command=save_and_close).grid(
+        style.configure("Accent.TButton", background=ACCENT, foreground="#ffffff")
+        style.map("Accent.TButton", background=[("active", ACCENT)])
+        ttk.Button(frame, text="Opslaan", command=save_and_close, style="Accent.TButton").grid(
             row=4, column=0, columnspan=3, pady=20
         )
 
