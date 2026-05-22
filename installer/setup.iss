@@ -28,9 +28,9 @@ Source: "..\assets\icon.ico";   DestDir: "{app}"; Flags: ignoreversion; Componen
 Name: "{app}\logs"; Permissions: everyone-modify
 
 [Icons]
-Name: "{group}\MotionWake";           Filename: "{app}\motionwake.exe"; IconFilename: "{app}\icon.ico"
-Name: "{group}\Verwijder MotionWake"; Filename: "{uninstallexe}"
-Name: "{userstartup}\MotionWake";     Filename: "{app}\motionwake.exe"; Parameters: "--tray"; IconFilename: "{app}\icon.ico"
+Name: "{group}\MotionWake";            Filename: "{app}\motionwake.exe"; IconFilename: "{app}\icon.ico"
+Name: "{group}\Verwijder MotionWake";  Filename: "{uninstallexe}"
+Name: "{commonstartup}\MotionWake";    Filename: "{app}\motionwake.exe"; Parameters: "--tray"; IconFilename: "{app}\icon.ico"; Comment: "MotionWake bewegingsdetectie"
 
 [Run]
 Filename: "{app}\motionwake.exe"; Parameters: "--install"; Flags: runhidden; StatusMsg: "Service installeren..."
