@@ -13,7 +13,7 @@ import servicemanager
 
 from src import logger_setup
 
-log = logger_setup.setup()
+log = logger_setup.setup(name="motionwake_service")
 
 SERVICE_NAME         = "MotionWakeSvc"
 SERVICE_DISPLAY_NAME = "MotionWake Service"
