@@ -89,15 +89,31 @@ def install_service():
         _stop_service_if_running()
         win32serviceutil.RemoveService(SERVICE_NAME)
 
-    win32serviceutil.InstallService(
-        None,
-        SERVICE_NAME,
-        SERVICE_DISPLAY_NAME,
-        startType=win32service.SERVICE_AUTO_START,
-        description=SERVICE_DESCRIPTION,
-    )
-    print(f"Service '{SERVICE_NAME}' geïnstalleerd.")
-    log.info("Service installed")
+    # Expliciet --service meegeven zodat Windows de juiste modus start
+    binary_path = f'"{sys.executable}" --service'
+
+    hscm = win32service.OpenSCManager(None, None, win32service.SC_MANAGER_CREATE_SERVICE)
+    try:
+        hs = win32service.CreateService(
+            hscm,
+            SERVICE_NAME,
+            SERVICE_DISPLAY_NAME,
+            win32service.SERVICE_ALL_ACCESS,
+            win32service.SERVICE_WIN32_OWN_PROCESS,
+            win32service.SERVICE_AUTO_START,
+            win32service.SERVICE_ERROR_NORMAL,
+            binary_path,
+            None, 0, None, None, None,
+        )
+        win32service.ChangeServiceConfig2(
+            hs, win32service.SERVICE_CONFIG_DESCRIPTION, SERVICE_DESCRIPTION
+        )
+        win32service.CloseServiceHandle(hs)
+    finally:
+        win32service.CloseServiceHandle(hscm)
+
+    print(f"Service '{SERVICE_NAME}' geïnstalleerd met: {binary_path}")
+    log.info(f"Service installed: {binary_path}")
 
 
 def uninstall_service():

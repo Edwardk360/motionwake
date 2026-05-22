@@ -56,7 +56,7 @@ def list_cameras():
 class MotionDetector:
     def __init__(self, camera_index=0, sensitivity=25, on_motion=None):
         self.camera_index = camera_index
-        self.sensitivity = sensitivity
+        self.sensitivity = sensitivity  # 1-100, hogere waarde = minder gevoelig
         self.on_motion = on_motion
         self._running = False
         self._thread = None
@@ -79,35 +79,53 @@ class MotionDetector:
             log.error(f"Kan camera index {self.camera_index} niet openen")
             return
 
-        ret, prev_frame = cap.read()
-        if not ret:
-            log.error("Kan geen frame lezen van camera")
-            cap.release()
-            return
+        # BackgroundSubtractorMOG2 leert de achtergrond en past zich automatisch
+        # aan lichtveranderingen aan — werkt overdag én 's nachts correct
+        bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+            history=500,        # aantal frames voor achtergrondmodel
+            varThreshold=16,    # gevoeligheid voor voorgrond detectie
+            detectShadows=True  # schaduwen apart markeren (grijs), niet als beweging tellen
+        )
 
-        prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-        prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
+        # Eerste frames gebruiken om achtergrond op te bouwen
+        warmup_frames = 30
+        log.info(f"Achtergrond opbouwen ({warmup_frames} frames)...")
+        for _ in range(warmup_frames):
+            ret, frame = cap.read()
+            if ret:
+                bg_subtractor.apply(frame)
+            time.sleep(0.05)
+
+        log.info("Detectie actief")
 
         while self._running:
             ret, frame = cap.read()
             if not ret:
-                log.warning("Frame lezen mislukt, opnieuw proberen...")
-                time.sleep(1)
+                log.warning("Frame lezen mislukt, camera opnieuw verbinden...")
+                cap.release()
+                time.sleep(2)
+                cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
                 continue
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gray = cv2.GaussianBlur(gray, (21, 21), 0)
+            # Bewegingsmasker: wit = beweging, grijs = schaduw, zwart = achtergrond
+            mask = bg_subtractor.apply(frame)
 
-            delta = cv2.absdiff(prev_gray, gray)
-            thresh = cv2.threshold(delta, self.sensitivity, 255, cv2.THRESH_BINARY)[1]
-            motion_pixels = cv2.countNonZero(thresh)
+            # Schaduwen (grijs = 127) uitsluiten — alleen echte beweging (wit = 255)
+            _, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
 
-            if motion_pixels > 500:
-                log.info(f"Beweging gedetecteerd ({motion_pixels} px gewijzigd)")
+            # Ruis verminderen
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+
+            motion_pixels = cv2.countNonZero(mask)
+
+            # Drempelwaarde schalen op basis van gevoeligheidsinstelling (1=meest gevoelig, 100=minst)
+            pixel_threshold = int(200 + (self.sensitivity / 100) * 3000)
+
+            if motion_pixels > pixel_threshold:
+                log.info(f"Beweging gedetecteerd ({motion_pixels} px, drempel={pixel_threshold})")
                 if self.on_motion:
                     self.on_motion()
 
-            prev_gray = gray
             time.sleep(0.1)
 
         cap.release()
