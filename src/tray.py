@@ -8,6 +8,7 @@ import os
 import sys
 import cv2
 
+import logging
 import win32serviceutil
 import win32service
 from src import config, logger_setup
@@ -313,6 +314,23 @@ class TrayApp:
                     pass
         threading.Thread(target=show_about, daemon=True).start()
 
+    def _on_open_log(self, icon, item):
+        handlers = logging.getLogger("motionwake").handlers
+        if handlers and hasattr(handlers[0], "baseFilename"):
+            os.startfile(handlers[0].baseFilename)
+        else:
+            def _warn():
+                root = tk.Tk()
+                root.withdraw()
+                try:
+                    messagebox.showwarning("Log", "Logbestand niet gevonden.")
+                finally:
+                    try:
+                        root.destroy()
+                    except Exception:
+                        pass
+            threading.Thread(target=_warn, daemon=True).start()
+
     def _on_quit(self, icon, item):
         if self.detector:
             self.detector.stop()
@@ -371,6 +389,7 @@ class TrayApp:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Instellingen", self._on_settings),
             pystray.MenuItem("Log niveau",   log_menu),
+            pystray.MenuItem("Open log",     self._on_open_log),
             pystray.MenuItem("Thema",        theme_menu),
             pystray.MenuItem("Over",         self._on_about),
             pystray.Menu.SEPARATOR,
