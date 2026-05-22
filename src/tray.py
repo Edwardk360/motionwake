@@ -42,6 +42,34 @@ def create_icon_image(active=False):
     return img
 
 
+class Tooltip:
+    """Toont een uitleg bij hoveren over een widget."""
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text   = text
+        self.tip    = None
+        widget.bind("<Enter>", self._show)
+        widget.bind("<Leave>", self._hide)
+
+    def _show(self, event=None):
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f"+{x}+{y}")
+        tk.Label(
+            self.tip, text=self.text, justify="left",
+            background="#2a2a2a", foreground="#ffffff",
+            relief="flat", font=("Segoe UI", 9),
+            padx=8, pady=5, wraplength=280
+        ).pack()
+
+    def _hide(self, event=None):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
+
 class SettingsWindow:
     def __init__(self, cameras):
         self.cameras = cameras
@@ -72,7 +100,9 @@ class SettingsWindow:
         frame.pack(fill="both", expand=True)
 
         # Camera selectie
-        ttk.Label(frame, text="Camera:").grid(row=0, column=0, sticky="w", pady=6)
+        cam_lbl = ttk.Label(frame, text="Camera:")
+        cam_lbl.grid(row=0, column=0, sticky="w", pady=6)
+        Tooltip(cam_lbl, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.")
         cam_names = [name for _, name in self.cameras]
         cam_var   = tk.StringVar()
         cam_box   = ttk.Combobox(frame, textvariable=cam_var, values=cam_names, state="readonly", width=32)
@@ -80,25 +110,33 @@ class SettingsWindow:
         default_pos = next((i for i, (idx, _) in enumerate(self.cameras) if idx == current_cam_idx), 0)
         cam_box.current(default_pos)
         cam_box.grid(row=0, column=1, pady=6, padx=8, columnspan=2)
+        Tooltip(cam_box, "Selecteer de camera voor bewegingsdetectie.\nWebcam staat meestal op index 0.\nWindows Hello IR camera staat vaak op index 1 of hoger.\nDe live preview hieronder helpt je de juiste te kiezen.")
 
         # Camera preview
         preview_label = tk.Label(frame, bg="#000000", width=40, height=8)
         preview_label.grid(row=1, column=0, columnspan=3, pady=8)
+        Tooltip(preview_label, "Live beeld van de geselecteerde camera.\nVerander de camera selectie hierboven om een andere camera te bekijken.")
 
         # Gevoeligheid
-        ttk.Label(frame, text="Gevoeligheid (1-80):").grid(row=2, column=0, sticky="w", pady=6)
+        sens_lbl_title = ttk.Label(frame, text="Gevoeligheid (1-80):")
+        sens_lbl_title.grid(row=2, column=0, sticky="w", pady=6)
+        Tooltip(sens_lbl_title, "Hoe gevoelig de bewegingsdetectie is.\n\nLaag (1-20): detecteert kleine bewegingen zoals een hand.\nMiddel (20-40): detecteert normale loopbewegingen.\nHoog (40-80): alleen grote snelle bewegingen.\n\nBij veel valse meldingen: waarde verhogen.\nBij geen detectie: waarde verlagen.")
         sens_var   = tk.IntVar(value=int(cfg.get("sensitivity", 20)))
         sens_scale = ttk.Scale(frame, from_=1, to=80, variable=sens_var, orient="horizontal", length=200)
         sens_scale.grid(row=2, column=1, pady=6, padx=8)
+        Tooltip(sens_scale, "Hoe gevoelig de bewegingsdetectie is.\n\nLaag (1-20): detecteert kleine bewegingen zoals een hand.\nMiddel (20-40): detecteert normale loopbewegingen.\nHoog (40-80): alleen grote snelle bewegingen.")
         sens_lbl   = ttk.Label(frame, text=str(sens_var.get()))
         sens_lbl.grid(row=2, column=2, padx=4)
         sens_var.trace_add("write", lambda *_: sens_lbl.config(text=str(sens_var.get())))
 
         # Scherm aan duur
-        ttk.Label(frame, text="Scherm aan (seconden):").grid(row=3, column=0, sticky="w", pady=6)
+        dur_lbl = ttk.Label(frame, text="Scherm aan (seconden):")
+        dur_lbl.grid(row=3, column=0, sticky="w", pady=6)
+        Tooltip(dur_lbl, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.")
         dur_var   = tk.IntVar(value=int(cfg.get("screen_on_duration", 60)))
         dur_entry = ttk.Entry(frame, textvariable=dur_var, width=8)
         dur_entry.grid(row=3, column=1, sticky="w", pady=6, padx=8)
+        Tooltip(dur_entry, "Hoe lang het scherm aan blijft na gedetecteerde beweging.\n\nVoorbeelden:\n  60 = 1 minuut\n  300 = 5 minuten\n  1200 = 20 minuten\n\nTyp het gewenste aantal seconden in het veld.")
 
         # Preview thread
         self._preview_running = True
@@ -113,10 +151,10 @@ class SettingsWindow:
                     ret, frame = self._preview_cap.read()
                     if ret:
                         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        frame = cv2.resize(frame, (320, 180))
+                        frame = cv2.resize(frame, (320, 240))
                         img   = ImageTk.PhotoImage(Image.fromarray(frame))
                         try:
-                            preview_label.config(image=img, width=320, height=180)
+                            preview_label.config(image=img, width=320, height=240)
                             preview_label.image = img
                         except Exception:
                             break
