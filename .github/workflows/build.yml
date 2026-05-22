@@ -1,0 +1,56 @@
+name: Build MotionWake
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "VERSION=$(Get-Content version.txt -Raw).Trim()" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Set up Python 3.11 (x64)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: "x64"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build EXE with PyInstaller
+        run: |
+          pyinstaller --onedir --windowed --name motionwake `
+            --add-data "version.txt;." `
+            --add-data "assets/icon.ico;assets" `
+            --hidden-import win32timezone `
+            --hidden-import pystray._win32 `
+            main.py
+        shell: pwsh
+
+      - name: Build Installer with Inno Setup
+        run: |
+          choco install innosetup --no-progress -y
+          iscc /DAppVersion=${{ steps.version.outputs.VERSION }} installer\setup.iss
+        shell: pwsh
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionWake-Setup-v${{ steps.version.outputs.VERSION }}
+          path: Output\MotionWake_Setup_v${{ steps.version.outputs.VERSION }}.exe
+
+      - name: Upload EXE (standalone)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionWake-EXE-v${{ steps.version.outputs.VERSION }}
+          path: dist\motionwake\
