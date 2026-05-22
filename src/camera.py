@@ -40,7 +40,6 @@ def list_cameras():
     registry_names = _get_registry_camera_names()
     cameras = []
     reg_idx = 0
-
     for i in range(10):
         cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
         if cap.isOpened():
@@ -49,83 +48,103 @@ def list_cameras():
             log.info(f"Camera gevonden [{i}]: {name}")
             cap.release()
             reg_idx += 1
-
     return cameras
 
 
 class MotionDetector:
-    def __init__(self, camera_index=0, sensitivity=25, on_motion=None):
+    """
+    Camera wordt expliciet geopend en gesloten.
+    Lage resolutie (320x240) en 15fps voor minimaal resourcegebruik als service.
+    Retry bij camera verlies (bijv. na slaapstand).
+    """
+    def __init__(self, camera_index=0, sensitivity=20, on_motion=None):
         self.camera_index = camera_index
-        self.sensitivity = sensitivity  # 1-100, hogere waarde = minder gevoelig
-        self.on_motion = on_motion
-        self._running = False
-        self._thread = None
+        self.sensitivity  = sensitivity
+        self.on_motion    = on_motion
+        self._cap         = None
+        self._prev_frame  = None
+        self._lock        = threading.Lock()
+        self._running     = False
+        self._thread      = None
+
+    def _open(self) -> bool:
+        with self._lock:
+            if self._cap and self._cap.isOpened():
+                return True
+            cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                return False
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,  320)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+            cap.set(cv2.CAP_PROP_FPS,           15)
+            self._cap        = cap
+            self._prev_frame = None
+            return True
+
+    def _close(self):
+        with self._lock:
+            if self._cap:
+                self._cap.release()
+                self._cap = None
+            self._prev_frame = None
+
+    def _detect(self) -> bool:
+        with self._lock:
+            if not self._cap or not self._cap.isOpened():
+                return False
+            ok, frame = self._cap.read()
+            if not ok:
+                return False
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.GaussianBlur(gray, (11, 11), 0)
+            if self._prev_frame is None:
+                self._prev_frame = gray
+                return False
+            delta = cv2.absdiff(self._prev_frame, gray)
+            self._prev_frame = gray
+            _, thresh = cv2.threshold(delta, self.sensitivity, 255, cv2.THRESH_BINARY)
+            return int(cv2.countNonZero(thresh)) > 300
 
     def start(self):
         self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread  = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         log.info(f"Bewegingsdetectie gestart op camera index {self.camera_index}")
 
     def stop(self):
         self._running = False
+        self._close()
         if self._thread:
             self._thread.join(timeout=5)
         log.info("Bewegingsdetectie gestopt")
 
     def _run(self):
-        cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
-        if not cap.isOpened():
-            log.error(f"Kan camera index {self.camera_index} niet openen")
-            return
+        # Probeer camera te openen, retry elke 10s bij mislukking
+        while self._running:
+            if self._open():
+                break
+            log.warning(f"Camera {self.camera_index} niet beschikbaar — opnieuw proberen in 10s")
+            time.sleep(10)
 
-        # BackgroundSubtractorMOG2 leert de achtergrond en past zich automatisch
-        # aan lichtveranderingen aan — werkt overdag én 's nachts correct
-        bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-            history=500,        # aantal frames voor achtergrondmodel
-            varThreshold=16,    # gevoeligheid voor voorgrond detectie
-            detectShadows=True  # schaduwen apart markeren (grijs), niet als beweging tellen
-        )
-
-        # Eerste frames gebruiken om achtergrond op te bouwen
-        warmup_frames = 30
-        log.info(f"Achtergrond opbouwen ({warmup_frames} frames)...")
-        for _ in range(warmup_frames):
-            ret, frame = cap.read()
-            if ret:
-                bg_subtractor.apply(frame)
-            time.sleep(0.05)
-
-        log.info("Detectie actief")
+        log.info(f"Camera {self.camera_index} geopend — monitoring actief")
 
         while self._running:
-            ret, frame = cap.read()
-            if not ret:
-                log.warning("Frame lezen mislukt, camera opnieuw verbinden...")
-                cap.release()
-                time.sleep(2)
-                cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
-                continue
+            try:
+                if not self._cap or not self._cap.isOpened():
+                    log.warning("Camera verbinding verloren — opnieuw verbinden...")
+                    self._close()
+                    time.sleep(2)
+                    self._open()
+                    continue
 
-            # Bewegingsmasker: wit = beweging, grijs = schaduw, zwart = achtergrond
-            mask = bg_subtractor.apply(frame)
+                if self._detect():
+                    log.info("Beweging gedetecteerd")
+                    if self.on_motion:
+                        self.on_motion()
 
-            # Schaduwen (grijs = 127) uitsluiten — alleen echte beweging (wit = 255)
-            _, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
-
-            # Ruis verminderen
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-
-            motion_pixels = cv2.countNonZero(mask)
-
-            # Drempelwaarde schalen op basis van gevoeligheidsinstelling (1=meest gevoelig, 100=minst)
-            pixel_threshold = int(200 + (self.sensitivity / 100) * 3000)
-
-            if motion_pixels > pixel_threshold:
-                log.info(f"Beweging gedetecteerd ({motion_pixels} px, drempel={pixel_threshold})")
-                if self.on_motion:
-                    self.on_motion()
+            except Exception as e:
+                log.error(f"Detectie fout: {e}")
 
             time.sleep(0.1)
 
-        cap.release()
+        self._close()
