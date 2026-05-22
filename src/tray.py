@@ -297,9 +297,23 @@ class TrayApp:
         icon.stop()
         log.info("Tray app afgesloten")
 
+    def _set_log_level(self, level_name):
+        logger_setup.set_level(level_name)
+        cfg_dict = dict(config.load())
+        cfg_dict["log_level"] = level_name
+        config.save(cfg_dict)
+        log.info(f"Logniveau gewijzigd naar {level_name}")
+
+    def _log_level_checked(self, level_name):
+        return lambda item: config.load().get("log_level", "INFO").upper() == level_name
+
     def run(self):
         log.info(f"MotionWake tray v{self.version} gestart")
         check_update_async(self.version, lambda v: log.info(f"Nieuwe versie beschikbaar: {v}"))
+
+        # Logniveau uit config toepassen
+        log_level = self.cfg.get("log_level", "INFO")
+        logger_setup.set_level(log_level)
 
         # Start camera monitoring direct in gebruikerssessie
         self._start_detector()
@@ -307,10 +321,18 @@ class TrayApp:
         # Achtergrond thread voor config wijzigingen
         threading.Thread(target=self._watch_config, daemon=True).start()
 
+        log_menu = pystray.Menu(
+            pystray.MenuItem("DEBUG",   lambda icon, item: self._set_log_level("DEBUG"),   checked=self._log_level_checked("DEBUG"),   radio=True),
+            pystray.MenuItem("INFO",    lambda icon, item: self._set_log_level("INFO"),    checked=self._log_level_checked("INFO"),    radio=True),
+            pystray.MenuItem("WARNING", lambda icon, item: self._set_log_level("WARNING"), checked=self._log_level_checked("WARNING"), radio=True),
+            pystray.MenuItem("ERROR",   lambda icon, item: self._set_log_level("ERROR"),   checked=self._log_level_checked("ERROR"),   radio=True),
+        )
+
         menu = pystray.Menu(
             pystray.MenuItem(f"MotionWake v{self.version}", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Instellingen", self._on_settings),
+            pystray.MenuItem("Log niveau",   log_menu),
             pystray.MenuItem("Over",         self._on_about),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Afsluiten",    self._on_quit),

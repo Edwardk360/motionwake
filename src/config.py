@@ -9,6 +9,7 @@ DEFAULTS = {
     "screen_on_duration": "60",
     "check_interval": "1",
     "github_update_check": "true",
+    "log_level": "INFO",
 }
 
 def load():
